@@ -127,7 +127,10 @@
   <section id="result-section" hidden>
     <div class="result-header">
       <h2>Your Program</h2>
-      <button id="start-over-btn" class="secondary-btn">Start over</button>
+      <div class="result-actions">
+        <button id="download-btn" class="secondary-btn">Download as Excel</button>
+        <button id="start-over-btn" class="secondary-btn">Start over</button>
+      </div>
     </div>
 
     <article class="result-block">
@@ -159,6 +162,7 @@
   <p>FitForge — demo project. Not medical advice.</p>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
