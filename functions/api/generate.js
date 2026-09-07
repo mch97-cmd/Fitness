@@ -2,7 +2,7 @@
 // Body: profile fields collected from the intake wizard.
 // Generates a tailored gym + diet program via Workers AI and stores it in D1.
 
-const MODEL = "@cf/zai-org/glm-4.7-flash";
+const MODEL = "@cf/ibm-granite/granite-4.0-h-micro";
 
 function badRequest(message) {
   return jsonResponse({ ok: false, error: message }, 400);
@@ -100,7 +100,10 @@ export async function onRequestPost({ request, env }) {
     return jsonResponse({ ok: false, error: "AI generation failed: " + err.message }, 502);
   }
 
-  const rawText = aiResult.response || "";
+  const rawText =  aiResult.response ||
+    aiResult.result?.response ||
+    aiResult.choices?.[0]?.message?.content ||
+    "";
   let parsed;
   try {
     parsed = extractJson(rawText);
