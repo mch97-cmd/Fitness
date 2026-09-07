@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FitForge — Your Personalized Training & Diet Plan</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="brand">FitForge</div>
+  <p class="tagline">Tell us about yourself, get a training and diet program built for you.</p>
+</header>
+
+<main>
+  <section id="intake-section">
+    <form id="intake-form" novalidate>
+      <div class="form-grid">
+        <div class="field">
+          <label for="name">Name (optional)</label>
+          <input type="text" id="name" name="name" placeholder="Alex" />
+        </div>
+
+        <div class="field">
+          <label for="sex">Sex *</label>
+          <select id="sex" name="sex" required>
+            <option value="" disabled selected>Select</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other / prefer not to say</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="age">Age *</label>
+          <input type="number" id="age" name="age" min="14" max="90" required />
+        </div>
+
+        <div class="field">
+          <label for="height_cm">Height (cm) *</label>
+          <input type="number" id="height_cm" name="height_cm" min="120" max="230" required />
+        </div>
+
+        <div class="field">
+          <label for="weight_kg">Weight (kg) *</label>
+          <input type="number" id="weight_kg" name="weight_kg" min="30" max="300" step="0.1" required />
+        </div>
+
+        <div class="field">
+          <label for="body_type">Body type</label>
+          <select id="body_type" name="body_type">
+            <option value="not sure" selected>Not sure</option>
+            <option value="ectomorph">Ectomorph (lean, hard to gain)</option>
+            <option value="mesomorph">Mesomorph (athletic build)</option>
+            <option value="endomorph">Endomorph (gains weight easily)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="activity_level">Current activity level *</label>
+          <select id="activity_level" name="activity_level" required>
+            <option value="" disabled selected>Select</option>
+            <option value="sedentary">Sedentary (little to no exercise)</option>
+            <option value="light">Light (1-2 days/week)</option>
+            <option value="moderate">Moderate (3-4 days/week)</option>
+            <option value="active">Active (5-6 days/week)</option>
+            <option value="very active">Very active (daily / physical job)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="goal">Primary goal *</label>
+          <select id="goal" name="goal" required>
+            <option value="" disabled selected>Select</option>
+            <option value="lose fat">Lose fat</option>
+            <option value="build muscle">Build muscle</option>
+            <option value="body recomposition">Body recomposition</option>
+            <option value="strength">Get stronger</option>
+            <option value="general fitness">General fitness / health</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="experience_level">Training experience *</label>
+          <select id="experience_level" name="experience_level" required>
+            <option value="" disabled selected>Select</option>
+            <option value="beginner">Beginner (0-1 year)</option>
+            <option value="intermediate">Intermediate (1-3 years)</option>
+            <option value="advanced">Advanced (3+ years)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="days_per_week">Training days per week *</label>
+          <input type="number" id="days_per_week" name="days_per_week" min="1" max="7" required />
+        </div>
+
+        <div class="field">
+          <label for="equipment">Available equipment</label>
+          <select id="equipment" name="equipment">
+            <option value="full gym" selected>Full gym</option>
+            <option value="home - dumbbells only">Home — dumbbells only</option>
+            <option value="home - no equipment">Home — no equipment (bodyweight)</option>
+          </select>
+        </div>
+
+        <div class="field field-wide">
+          <label for="conditions">Health conditions / injuries (optional)</label>
+          <textarea id="conditions" name="conditions" rows="2" placeholder="e.g. lower back pain, asthma, high blood pressure"></textarea>
+        </div>
+
+        <div class="field field-wide">
+          <label for="dietary_prefs">Dietary preferences / restrictions (optional)</label>
+          <textarea id="dietary_prefs" name="dietary_prefs" rows="2" placeholder="e.g. vegetarian, lactose intolerant, halal"></textarea>
+        </div>
+      </div>
+
+      <button type="submit" id="submit-btn">Generate my program</button>
+      <p class="disclaimer">This tool provides general fitness and nutrition suggestions, not medical advice. Consult a doctor before starting a new program, especially with existing health conditions.</p>
+    </form>
+  </section>
+
+  <section id="loading-section" hidden>
+    <p class="loading-text">Building your program…</p>
+  </section>
+
+  <section id="result-section" hidden>
+    <div class="result-header">
+      <h2>Your Program</h2>
+      <button id="start-over-btn" class="secondary-btn">Start over</button>
+    </div>
+
+    <article class="result-block">
+      <h3>Gym Program</h3>
+      <p id="gym-summary" class="result-summary"></p>
+      <div id="gym-days"></div>
+    </article>
+
+    <article class="result-block">
+      <h3>Diet Program</h3>
+      <p id="diet-summary" class="result-summary"></p>
+      <div id="diet-macros" class="macros-row"></div>
+      <div id="diet-meals"></div>
+    </article>
+
+    <article class="result-block notes-block">
+      <h3>Notes & Safety</h3>
+      <p id="plan-notes"></p>
+    </article>
+  </section>
+
+  <section id="error-section" hidden>
+    <p id="error-text" class="error-text"></p>
+    <button id="error-retry-btn" class="secondary-btn">Try again</button>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>FitForge — demo project. Not medical advice.</p>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>
