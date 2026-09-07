@@ -15,9 +15,63 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-function buildPrompt(profile) {
+// LLMs are unreliable at arithmetic, so calorie/macro targets are computed
+// deterministically here and handed to the model as fixed constraints —
+// the model is only used for exercise selection and meal ideas, never math.
+const ACTIVITY_MULTIPLIERS = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  "very active": 1.9,
+};
+
+const GOAL_CALORIE_ADJUSTMENT = {
+  "lose fat": -500,
+  "body recomposition": -200,
+  "build muscle": 300,
+  strength: 150,
+  "general fitness": 0,
+};
+
+const GOAL_PROTEIN_PER_KG = {
+  "lose fat": 2.2,
+  "body recomposition": 2.2,
+  "build muscle": 2.0,
+  strength: 2.0,
+  "general fitness": 1.8,
+};
+
+function computeNutritionTargets(profile) {
+  const { sex, age, height_cm, weight_kg, activity_level, goal } = profile;
+
+  // Mifflin-St Jeor
+  let bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age;
+  bmr += sex === "male" ? 5 : sex === "female" ? -161 : -78;
+
+  const multiplier = ACTIVITY_MULTIPLIERS[activity_level] || 1.375;
+  const tdee = bmr * multiplier;
+
+  const adjustment = GOAL_CALORIE_ADJUSTMENT[goal] ?? 0;
+  const safetyFloor = sex === "male" ? 1500 : 1200;
+  const daily_calories = Math.round(Math.max(tdee + adjustment, safetyFloor));
+
+  const proteinPerKg = GOAL_PROTEIN_PER_KG[goal] || 1.8;
+  const protein_g = Math.round(weight_kg * proteinPerKg);
+  const fat_g = Math.round((daily_calories * 0.25) / 9);
+  const carbs_g = Math.max(Math.round((daily_calories - protein_g * 4 - fat_g * 9) / 4), 0);
+
+  return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
+    daily_calories,
+    macros: { protein_g, carbs_g, fat_g },
+  };
+}
+
+function buildPrompt(profile, targets) {
   const conditionsNote = profile.conditions
-    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Adjust exercise selection and intensity to be safe for these conditions, avoid contraindicated movements, and explicitly note where the user should consult a doctor before proceeding.`
+    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Adjust exercise selection and intensity to be safe for these conditions, avoid contraindicated movements, and explicitly note where the user should consult a doctor before proceeding. Only include condition-specific cautions you are actually confident are medically relevant — do not invent restrictions without a clear basis.`
     : "The user reports no health conditions or injuries.";
 
   return `You are a certified strength coach and nutritionist. Design a personalized program for this person.
@@ -37,6 +91,13 @@ Profile:
 - Dietary preferences: ${profile.dietary_prefs || "none specified"}
 ${conditionsNote}
 
+Nutrition targets have already been calculated for this person — use these EXACT numbers in the diet_program output, do not recalculate or change them:
+- Daily calories: ${targets.daily_calories} kcal
+- Protein: ${targets.macros.protein_g} g
+- Carbs: ${targets.macros.carbs_g} g
+- Fat: ${targets.macros.fat_g} g
+Only design meal ideas that roughly fit these numbers — do not output different calorie/macro values.
+
 Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
 {
   "gym_program": {
@@ -53,8 +114,8 @@ Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
   },
   "diet_program": {
     "summary": "short overview of the nutrition approach",
-    "daily_calories": 2400,
-    "macros": { "protein_g": 180, "carbs_g": 250, "fat_g": 70 },
+    "daily_calories": ${targets.daily_calories},
+    "macros": { "protein_g": ${targets.macros.protein_g}, "carbs_g": ${targets.macros.carbs_g}, "fat_g": ${targets.macros.fat_g} },
     "meals": [
       { "name": "Breakfast", "example": "description of a sample meal" }
     ]
@@ -85,7 +146,8 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
-  const prompt = buildPrompt(profile);
+  const targets = computeNutritionTargets(profile);
+  const prompt = buildPrompt(profile, targets);
 
   let aiResult;
   try {
@@ -100,7 +162,8 @@ export async function onRequestPost({ request, env }) {
     return jsonResponse({ ok: false, error: "AI generation failed: " + err.message }, 502);
   }
 
-  const rawText =  aiResult.response ||
+  const rawText =
+    aiResult.response ||
     aiResult.result?.response ||
     aiResult.choices?.[0]?.message?.content ||
     "";
@@ -110,6 +173,13 @@ export async function onRequestPost({ request, env }) {
   } catch (err) {
     return jsonResponse({ ok: false, error: "Could not parse AI response", raw: rawText }, 502);
   }
+
+  // Never trust the model's arithmetic — always overwrite with the computed values.
+  parsed.diet_program = {
+    ...(parsed.diet_program || {}),
+    daily_calories: targets.daily_calories,
+    macros: targets.macros,
+  };
 
   const profileId = crypto.randomUUID();
   const planId = crypto.randomUUID();
