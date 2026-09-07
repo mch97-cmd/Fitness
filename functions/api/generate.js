@@ -2,7 +2,7 @@
 // Body: profile fields collected from the intake wizard.
 // Generates a tailored gym + diet program via Workers AI and stores it in D1.
 
-const MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const MODEL = "@cf/zai-org/glm-4.7-flash";
 
 function badRequest(message) {
   return jsonResponse({ ok: false, error: message }, 400);
