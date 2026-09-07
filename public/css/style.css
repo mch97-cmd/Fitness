@@ -181,6 +181,13 @@ textarea { resize: vertical; }
 .meal-row:first-child { border-top: none; }
 .meal-name { font-weight: 600; }
 .meal-example { color: var(--text-dim); font-size: 0.9rem; }
+.meal-macros { color: var(--accent); font-size: 0.8rem; margin-top: 0.15rem; }
+.meal-alt { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.15rem; font-style: italic; }
+
+.result-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 
 .notes-block p { color: var(--text-dim); white-space: pre-line; }
 
