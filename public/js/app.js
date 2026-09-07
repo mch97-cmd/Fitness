@@ -5,6 +5,8 @@
   const resultSection = document.getElementById("result-section");
   const errorSection = document.getElementById("error-section");
   const submitBtn = document.getElementById("submit-btn");
+  let lastResult = null;
+  let lastProfileName = "";
 
   function showOnly(section) {
     [intakeSection, loadingSection, resultSection, errorSection].forEach((s) => {
@@ -76,12 +78,28 @@
     (program.meals || []).forEach((meal) => {
       const row = document.createElement("div");
       row.className = "meal-row";
+
+      const macroBits = [
+        meal.calories ? `${meal.calories} kcal` : null,
+        meal.protein_g ? `${meal.protein_g}g protein` : null,
+        meal.carbs_g ? `${meal.carbs_g}g carbs` : null,
+        meal.fat_g ? `${meal.fat_g}g fat` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
       row.innerHTML = `
         <div class="meal-name"></div>
         <div class="meal-example"></div>
+        <div class="meal-macros"></div>
+        <div class="meal-alt"></div>
       `;
       row.querySelector(".meal-name").textContent = meal.name || "Meal";
       row.querySelector(".meal-example").textContent = meal.example || "";
+      row.querySelector(".meal-macros").textContent = macroBits;
+      if (meal.alternative) {
+        row.querySelector(".meal-alt").textContent = `Swap option: ${meal.alternative}`;
+      }
       mealsContainer.appendChild(row);
     });
   }
@@ -109,6 +127,8 @@
     try {
       const profile = collectProfile();
       const result = await submitProfile(profile);
+      lastResult = result;
+      lastProfileName = profile.name || "";
       renderGymProgram(result.gym_program || {});
       renderDietProgram(result.diet_program || {});
       document.getElementById("plan-notes").textContent = result.notes || "";
@@ -120,6 +140,55 @@
       submitBtn.disabled = false;
     }
   });
+
+  function downloadExcel() {
+    if (!lastResult) return;
+
+    const gym = lastResult.gym_program || {};
+    const diet = lastResult.diet_program || {};
+    const macros = diet.macros || {};
+
+    const gymRows = [["Day", "Exercise", "Sets", "Reps", "Notes"]];
+    (gym.days || []).forEach((day) => {
+      (day.exercises || []).forEach((ex) => {
+        gymRows.push([day.day || "", ex.name || "", ex.sets || "", ex.reps || "", ex.notes || ""]);
+      });
+    });
+
+    const dietRows = [
+      ["Daily Calories", diet.daily_calories || ""],
+      ["Protein (g)", macros.protein_g || ""],
+      ["Carbs (g)", macros.carbs_g || ""],
+      ["Fat (g)", macros.fat_g || ""],
+      [],
+      ["Meal", "Example", "Alternative", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"],
+    ];
+    (diet.meals || []).forEach((meal) => {
+      dietRows.push([
+        meal.name || "",
+        meal.example || "",
+        meal.alternative || "",
+        meal.calories || "",
+        meal.protein_g || "",
+        meal.carbs_g || "",
+        meal.fat_g || "",
+      ]);
+    });
+
+    const notesRows = [["Notes"], [lastResult.notes || ""]];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(gymRows), "Gym Program");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dietRows), "Diet Program");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notesRows), "Notes");
+
+    const filename = lastProfileName
+      ? `fitforge-plan-${lastProfileName.replace(/\s+/g, "-").toLowerCase()}.xlsx`
+      : "fitforge-plan.xlsx";
+    XLSX.writeFile(wb, filename);
+  }
+
+  document.getElementById("download-btn").addEventListener("click", downloadExcel);
 
   document.getElementById("start-over-btn").addEventListener("click", () => {
     showOnly(intakeSection);
