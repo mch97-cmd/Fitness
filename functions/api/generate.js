@@ -91,12 +91,13 @@ Profile:
 - Dietary preferences: ${profile.dietary_prefs || "none specified"}
 ${conditionsNote}
 
-Nutrition targets have already been calculated for this person — use these EXACT numbers in the diet_program output, do not recalculate or change them:
+Nutrition targets have already been calculated for this person — the daily_calories and macros fields below must equal these EXACT numbers, do not recalculate or change them:
 - Daily calories: ${targets.daily_calories} kcal
 - Protein: ${targets.macros.protein_g} g
 - Carbs: ${targets.macros.carbs_g} g
 - Fat: ${targets.macros.fat_g} g
-Only design meal ideas that roughly fit these numbers — do not output different calorie/macro values.
+
+Split that daily total across the meals (breakfast, lunch, dinner, snacks) so each meal's own calories/macros are a reasonable portion of the day and the meals roughly sum to the daily totals above. For each meal, also give ONE alternative dish that hits similar calories/macros, so the person can rotate meals without getting bored (e.g. "200g grilled chicken breast" as an alternative to salmon).
 
 Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
 {
@@ -117,11 +118,48 @@ Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
     "daily_calories": ${targets.daily_calories},
     "macros": { "protein_g": ${targets.macros.protein_g}, "carbs_g": ${targets.macros.carbs_g}, "fat_g": ${targets.macros.fat_g} },
     "meals": [
-      { "name": "Breakfast", "example": "description of a sample meal" }
+      {
+        "name": "Breakfast",
+        "example": "description of a sample meal",
+        "alternative": "an alternative meal with similar calories/macros",
+        "calories": 450,
+        "protein_g": 30,
+        "carbs_g": 45,
+        "fat_g": 15
+      }
     ]
   },
   "notes": "safety notes, disclaimers, and any condition-specific cautions"
 }`;
+}
+
+// Rescales the model's per-meal calorie/macro guesses so they actually sum
+// to the deterministic daily targets, instead of trusting the model's addition.
+function normalizeMeals(meals, targets) {
+  if (!Array.isArray(meals) || meals.length === 0) return meals;
+
+  const fields = ["calories", "protein_g", "carbs_g", "fat_g"];
+  const dailyTotals = {
+    calories: targets.daily_calories,
+    protein_g: targets.macros.protein_g,
+    carbs_g: targets.macros.carbs_g,
+    fat_g: targets.macros.fat_g,
+  };
+
+  const sums = fields.reduce((acc, f) => {
+    acc[f] = meals.reduce((s, m) => s + (Number(m[f]) || 0), 0);
+    return acc;
+  }, {});
+
+  return meals.map((meal) => {
+    const scaled = { ...meal };
+    for (const f of fields) {
+      if (sums[f] > 0) {
+        scaled[f] = Math.round(((Number(meal[f]) || 0) / sums[f]) * dailyTotals[f]);
+      }
+    }
+    return scaled;
+  });
 }
 
 function extractJson(text) {
@@ -179,6 +217,7 @@ export async function onRequestPost({ request, env }) {
     ...(parsed.diet_program || {}),
     daily_calories: targets.daily_calories,
     macros: targets.macros,
+    meals: normalizeMeals(parsed.diet_program?.meals, targets),
   };
 
   const profileId = crypto.randomUUID();
