@@ -18,6 +18,8 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
+  overflow-wrap: break-word;
+  overflow-x: hidden;
 }
 
 .site-header {
@@ -145,17 +147,27 @@ textarea { resize: vertical; }
 .day-block h4 { margin: 0 0 0.5rem; }
 
 .exercise-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.35rem 0;
+  padding: 0.4rem 0;
   font-size: 0.92rem;
   border-bottom: 1px dashed var(--border);
 }
 
 .exercise-row:last-child { border-bottom: none; }
+
+.exercise-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .exercise-name { font-weight: 600; }
-.exercise-meta { color: var(--text-dim); white-space: nowrap; }
+.exercise-meta { color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+.exercise-notes {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+  overflow-wrap: break-word;
+}
 
 .macros-row {
   display: flex;
