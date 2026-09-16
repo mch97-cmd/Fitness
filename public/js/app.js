@@ -28,14 +28,20 @@
     const row = document.createElement("div");
     row.className = "exercise-row";
     row.innerHTML = `
-      <span class="exercise-name"></span>
-      <span class="exercise-meta"></span>
+      <div class="exercise-top">
+        <span class="exercise-name"></span>
+        <span class="exercise-meta"></span>
+      </div>
+      <div class="exercise-notes"></div>
     `;
     row.querySelector(".exercise-name").textContent = ex.name || "Exercise";
-    const meta = [ex.sets ? `${ex.sets} sets` : null, ex.reps ? `${ex.reps} reps` : null, ex.notes || null]
+    const meta = [ex.sets ? `${ex.sets} sets` : null, ex.reps ? `${ex.reps} reps` : null]
       .filter(Boolean)
       .join(" · ");
     row.querySelector(".exercise-meta").textContent = meta;
+    if (ex.notes) {
+      row.querySelector(".exercise-notes").textContent = ex.notes;
+    }
     return row;
   }
 
