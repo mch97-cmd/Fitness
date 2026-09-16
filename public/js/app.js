@@ -154,7 +154,7 @@
     const diet = lastResult.diet_program || {};
     const macros = diet.macros || {};
 
-    const gymRows = [["Day", "Exercise", "Sets", "Reps", "Notes"]];
+    const gymRows = [["Summary", gym.summary || ""], [], ["Day", "Exercise", "Sets", "Reps", "Notes"]];
     (gym.days || []).forEach((day) => {
       (day.exercises || []).forEach((ex) => {
         gymRows.push([day.day || "", ex.name || "", ex.sets || "", ex.reps || "", ex.notes || ""]);
@@ -162,6 +162,8 @@
     });
 
     const dietRows = [
+      ["Summary", diet.summary || ""],
+      [],
       ["Daily Calories", diet.daily_calories || ""],
       ["Protein (g)", macros.protein_g || ""],
       ["Carbs (g)", macros.carbs_g || ""],
