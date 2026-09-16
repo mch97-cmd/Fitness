@@ -96,7 +96,7 @@ Training program requirements:
 - Give each training day AT LEAST 5-6 exercises (never just 2-3) — beginners can stay toward 5, intermediate/advanced toward 6-7.
 - Across the week, cover every major muscle group: chest, back, shoulders, biceps, triceps, quads, hamstrings, glutes, calves, and core. Do not rely only on compound lifts to imply arm work — include at least one DIRECT biceps exercise (e.g. curls) and one DIRECT triceps exercise (e.g. pushdowns/extensions/dips) somewhere in the week, and two of each if training days per week is 4 or more or the goal is "build muscle".
 - Choose a split that fits ${profile.days_per_week} training days: 1-2 days = full body, 3 days = Push/Pull/Legs, 4 days = Upper/Lower or Push/Pull/Legs+Upper, 5-6 days = a full body-part split (e.g. Chest, Back, Shoulders, Arms, Legs).
-- ONLY select exercises that can be performed with the available equipment: "${profile.equipment}". If it is "home - no equipment", use bodyweight exercises exclusively (push-ups, squats, lunges, planks, pull-ups only if a bar is plausible, etc) — do not include any barbell, dumbbell, or machine exercises. If it is "home - dumbbells only", use only dumbbell and bodyweight exercises — no barbells or gym machines.
+- ONLY select exercises that can be performed with the available equipment: "${profile.equipment}". If it is "home - no equipment", use ONLY bodyweight exercises — good examples: push-ups, diamond push-ups, pike push-ups, squats, lunges, glute bridges, planks, mountain climbers, bodyweight rows on a sturdy table/bar, pull-ups if a bar is plausible, bicep-focused isometric holds, tricep dips on a chair/couch. NEVER include "dumbbell", "barbell", "kettlebell", "cable", "machine", or "pulldown" in an exercise name for this equipment level. If it is "home - dumbbells only", use only dumbbell and bodyweight exercises — no barbells, cables, or gym machines.
 
 Nutrition targets have already been calculated for this person — the daily_calories and macros fields below must equal these EXACT numbers, do not recalculate or change them:
 - Daily calories: ${targets.daily_calories} kcal
@@ -169,6 +169,58 @@ function normalizeMeals(meals, targets) {
   });
 }
 
+// Prompt instructions alone aren't reliable enough for a small model to always
+// follow (verified: it still suggested dumbbell/machine exercises for "no
+// equipment" and nuts for a "no nuts" restriction) — so scan the actual output
+// for violations and surface them, the same "never fully trust the LLM"
+// principle used for the calorie/macro math.
+const EQUIPMENT_FORBIDDEN_KEYWORDS = {
+  "home - no equipment": [
+    "dumbbell", "barbell", "kettlebell", "cable", "machine", "pulldown",
+    "leg press", "smith machine", "plate", "ez bar", "landmine",
+  ],
+  "home - dumbbells only": ["barbell", "cable", "machine", "pulldown", "leg press", "smith machine", "landmine"],
+};
+
+function checkEquipmentConflicts(days, equipment) {
+  const forbidden = EQUIPMENT_FORBIDDEN_KEYWORDS[equipment];
+  if (!forbidden || !Array.isArray(days)) return [];
+  const flagged = [];
+  for (const day of days) {
+    for (const ex of day.exercises || []) {
+      const name = (ex.name || "").toLowerCase();
+      if (forbidden.some((kw) => name.includes(kw))) flagged.push(ex.name);
+    }
+  }
+  return [...new Set(flagged)];
+}
+
+const DIETARY_CONFLICT_KEYWORDS = {
+  vegetarian: ["chicken", "beef", "pork", "turkey", "bacon", "salmon", "tuna", "shrimp", "fish", "steak", "ham", "sausage"],
+  vegan: ["chicken", "beef", "pork", "turkey", "bacon", "salmon", "tuna", "shrimp", "fish", "steak", "ham", "sausage", "egg", "cheese", "milk", "yogurt", "honey", "butter"],
+  "no nuts": ["almond", "walnut", "cashew", "peanut", "pistachio", "pecan", "hazelnut", "macadamia", "nuts"],
+  "nut allerg": ["almond", "walnut", "cashew", "peanut", "pistachio", "pecan", "hazelnut", "macadamia", "nuts"],
+  lactose: ["milk", "cheese", "yogurt", "cream", "butter"],
+  dairy: ["milk", "cheese", "yogurt", "cream", "butter"],
+  gluten: ["bread", "pasta", "wheat", "flour", "couscous", "barley"],
+  shellfish: ["shrimp", "crab", "lobster", "shellfish"],
+};
+
+function checkDietaryConflicts(meals, dietaryPrefsText) {
+  if (!dietaryPrefsText || !Array.isArray(meals)) return [];
+  const prefsLower = dietaryPrefsText.toLowerCase();
+  const activeKeys = Object.keys(DIETARY_CONFLICT_KEYWORDS).filter((k) => prefsLower.includes(k));
+  if (activeKeys.length === 0) return [];
+  const forbidden = [...new Set(activeKeys.flatMap((k) => DIETARY_CONFLICT_KEYWORDS[k]))];
+  const flagged = [];
+  for (const meal of meals || []) {
+    const text = `${meal.example || ""} ${meal.alternative || ""}`.toLowerCase();
+    const hit = forbidden.find((kw) => text.includes(kw));
+    if (hit) flagged.push(`${meal.name} (contains "${hit}")`);
+  }
+  return flagged;
+}
+
 function extractJson(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -226,6 +278,17 @@ export async function onRequestPost({ request, env }) {
     macros: targets.macros,
     meals: normalizeMeals(parsed.diet_program?.meals, targets),
   };
+
+  const equipmentConflicts = checkEquipmentConflicts(parsed.gym_program?.days, profile.equipment);
+  const dietaryConflicts = checkDietaryConflicts(parsed.diet_program?.meals, profile.dietary_prefs);
+  let notes = parsed.notes || "";
+  if (equipmentConflicts.length) {
+    notes += `\n\nEquipment check: these exercises may need equipment beyond what you selected (${profile.equipment}) — review before starting: ${equipmentConflicts.join(", ")}.`;
+  }
+  if (dietaryConflicts.length) {
+    notes += `\n\nDietary check: these meals may not match your stated preferences ("${profile.dietary_prefs}") — review before following: ${dietaryConflicts.join(", ")}.`;
+  }
+  parsed.notes = notes;
 
   const profileId = crypto.randomUUID();
   const planId = crypto.randomUUID();
