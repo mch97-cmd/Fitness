@@ -91,6 +91,11 @@ Profile:
 - Dietary preferences: ${profile.dietary_prefs || "none specified"}
 ${conditionsNote}
 
+Training program requirements:
+- Give each training day AT LEAST 5-6 exercises (never just 2-3) — beginners can stay toward 5, intermediate/advanced toward 6-7.
+- Across the week, cover every major muscle group: chest, back, shoulders, biceps, triceps, quads, hamstrings, glutes, calves, and core. Do not rely only on compound lifts to imply arm work — include at least one DIRECT biceps exercise (e.g. curls) and one DIRECT triceps exercise (e.g. pushdowns/extensions/dips) somewhere in the week, and two of each if training days per week is 4 or more or the goal is "build muscle".
+- Choose a split that fits the number of training days: 1-2 days = full body, 3 days = Push/Pull/Legs, 4 days = Upper/Lower or Push/Pull/Legs+Upper, 5-6 days = a full body-part split (e.g. Chest, Back, Shoulders, Arms, Legs).
+
 Nutrition targets have already been calculated for this person — the daily_calories and macros fields below must equal these EXACT numbers, do not recalculate or change them:
 - Daily calories: ${targets.daily_calories} kcal
 - Protein: ${targets.macros.protein_g} g
@@ -194,7 +199,7 @@ export async function onRequestPost({ request, env }) {
         { role: "system", content: "You output only valid JSON. No prose, no markdown fences." },
         { role: "user", content: prompt },
       ],
-      max_tokens: 2048,
+      max_tokens: 3500,
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: "AI generation failed: " + err.message }, 502);
