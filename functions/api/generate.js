@@ -92,9 +92,11 @@ Profile:
 ${conditionsNote}
 
 Training program requirements:
+- The "days" array MUST contain EXACTLY ${profile.days_per_week} entries — one per requested training day, no more, no fewer.
 - Give each training day AT LEAST 5-6 exercises (never just 2-3) — beginners can stay toward 5, intermediate/advanced toward 6-7.
 - Across the week, cover every major muscle group: chest, back, shoulders, biceps, triceps, quads, hamstrings, glutes, calves, and core. Do not rely only on compound lifts to imply arm work — include at least one DIRECT biceps exercise (e.g. curls) and one DIRECT triceps exercise (e.g. pushdowns/extensions/dips) somewhere in the week, and two of each if training days per week is 4 or more or the goal is "build muscle".
-- Choose a split that fits the number of training days: 1-2 days = full body, 3 days = Push/Pull/Legs, 4 days = Upper/Lower or Push/Pull/Legs+Upper, 5-6 days = a full body-part split (e.g. Chest, Back, Shoulders, Arms, Legs).
+- Choose a split that fits ${profile.days_per_week} training days: 1-2 days = full body, 3 days = Push/Pull/Legs, 4 days = Upper/Lower or Push/Pull/Legs+Upper, 5-6 days = a full body-part split (e.g. Chest, Back, Shoulders, Arms, Legs).
+- ONLY select exercises that can be performed with the available equipment: "${profile.equipment}". If it is "home - no equipment", use bodyweight exercises exclusively (push-ups, squats, lunges, planks, pull-ups only if a bar is plausible, etc) — do not include any barbell, dumbbell, or machine exercises. If it is "home - dumbbells only", use only dumbbell and bodyweight exercises — no barbells or gym machines.
 
 Nutrition targets have already been calculated for this person — the daily_calories and macros fields below must equal these EXACT numbers, do not recalculate or change them:
 - Daily calories: ${targets.daily_calories} kcal
@@ -103,12 +105,12 @@ Nutrition targets have already been calculated for this person — the daily_cal
 - Fat: ${targets.macros.fat_g} g
 
 Split that daily total across the meals (breakfast, lunch, dinner, snacks) so each meal's own calories/macros are a reasonable portion of the day and the meals roughly sum to the daily totals above. For each meal, also give ONE alternative dish that hits similar calories/macros, so the person can rotate meals without getting bored (e.g. "200g grilled chicken breast" as an alternative to salmon).
+${profile.dietary_prefs ? `STRICT dietary rule: every meal and its alternative MUST comply with these dietary preferences/restrictions: "${profile.dietary_prefs}". Never suggest an ingredient that violates them.` : ""}
 
 Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
 {
   "gym_program": {
     "summary": "short overview of the training approach",
-    "weekly_split": ["Day 1: ...", "Day 2: ..."],
     "days": [
       {
         "day": "Day 1 - Push",
