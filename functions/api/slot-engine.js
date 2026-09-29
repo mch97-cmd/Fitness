@@ -57,9 +57,20 @@ export function selectTemplate(daysPerWeek, equipmentProfile, goal) {
   return preferred || matches[0];
 }
 
-function isBodyweightOnly(exerciseEquipment) {
-  return exerciseEquipment.length === 1 && exerciseEquipment[0] === "bodyweight";
-}
+// Every equipment tier is a superset of the ones below it (full_gym includes
+// dumbbells includes bodyweight, etc.), so a plain "is this exercise usable"
+// check lets a full-gym user get handed dumbbell or even bodyweight exercises
+// whenever the model prefers them — which is technically valid but defeats
+// the point of selecting "full gym". These preference tiers make the engine
+// pick the BEST tier the user actually has access to for each slot, only
+// falling back to a lower tier when the catalog has nothing at the top one.
+const EQUIPMENT_PREFERENCE_TIERS = {
+  full_gym: [["full_gym", "pull_up_bar"], ["dumbbells"], ["resistance_bands"], ["bodyweight"]],
+  dumbbells: [["dumbbells"], ["bodyweight"]],
+  bands: [["resistance_bands"], ["bodyweight"]],
+  bodyweight_with_bar: [["pull_up_bar"], ["bodyweight"]],
+  bodyweight_only: [["bodyweight"]],
+};
 
 export function getEligibleExercises(slotCategory, equipmentProfile, experienceLevel) {
   const userTokens = getEquipmentTokens(equipmentProfile);
@@ -70,14 +81,12 @@ export function getEligibleExercises(slotCategory, equipmentProfile, experienceL
       experienceAllowed(ex.min_experience, experienceLevel)
   );
 
-  // A bodyweight exercise is technically valid for a "full gym" user too
-  // (bodyweight is a subset of every higher tier), but nobody who picked
-  // "full gym" wants a plan indistinguishable from a bodyweight-only one.
-  // Prefer exercises that actually use their equipment tier, falling back
-  // to bodyweight only if the catalog has nothing else for this slot.
-  if (equipmentProfile === "bodyweight_only") return allEligible;
-  const usesTheirEquipment = allEligible.filter((ex) => !isBodyweightOnly(ex.equipment));
-  return usesTheirEquipment.length > 0 ? usesTheirEquipment : allEligible;
+  const tiers = EQUIPMENT_PREFERENCE_TIERS[equipmentProfile] || EQUIPMENT_PREFERENCE_TIERS.bodyweight_only;
+  for (const tierTags of tiers) {
+    const tierMatches = allEligible.filter((ex) => ex.equipment.some((tag) => tierTags.includes(tag)));
+    if (tierMatches.length > 0) return tierMatches;
+  }
+  return allEligible;
 }
 
 function setsRepsFor(slotCategory, experienceLevel) {
@@ -134,7 +143,11 @@ export function resolveGymSelection(slotPlan, aiSelection) {
         name: chosen.name,
         sets: slot.setsReps.sets,
         reps: slot.setsReps.reps,
-        notes: (aiSlot?.note || chosen.form_cue || "").trim(),
+        // Always use the catalog's own vetted form cue, never the model's
+        // free-text note — a per-exercise AI note risks being a condition
+        // caution that got attached to the wrong exercise (verified: "avoid
+        // full range of motion for ankle stress" landed on a chest press).
+        notes: chosen.form_cue || "",
       };
     });
 
