@@ -90,17 +90,19 @@
           </select>
         </div>
 
-        <div class="field">
+                <div class="field">
           <label for="days_per_week">Training days per week *</label>
-          <input type="number" id="days_per_week" name="days_per_week" min="1" max="7" required />
+          <input type="number" id="days_per_week" name="days_per_week" min="1" max="6" required />
         </div>
 
         <div class="field">
           <label for="equipment">Available equipment</label>
           <select id="equipment" name="equipment">
-            <option value="full gym" selected>Full gym</option>
-            <option value="home - dumbbells only">Home — dumbbells only</option>
-            <option value="home - no equipment">Home — no equipment (bodyweight)</option>
+            <option value="full_gym" selected>Full gym</option>
+            <option value="dumbbells">Dumbbells only</option>
+            <option value="bands">Bodyweight + resistance bands</option>
+            <option value="bodyweight_with_bar">Bodyweight + pull-up bar</option>
+            <option value="bodyweight_only">Bodyweight only (no equipment)</option>
           </select>
         </div>
 
