@@ -2,7 +2,7 @@
 // Body: profile fields collected from the intake wizard.
 // Generates a tailored gym + diet program via Workers AI and stores it in D1.
 
-import { selectTemplate, buildSlotPlan, resolveGymSelection } from "./_lib/slot-engine.js";
+import { selectTemplate, buildSlotPlan, resolveGymSelection } from "./slot-engine.js";
 
 const MODEL = "@cf/ibm-granite/granite-4.0-h-micro";
 
