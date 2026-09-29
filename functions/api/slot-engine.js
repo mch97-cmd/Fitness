@@ -57,14 +57,27 @@ export function selectTemplate(daysPerWeek, equipmentProfile, goal) {
   return preferred || matches[0];
 }
 
+function isBodyweightOnly(exerciseEquipment) {
+  return exerciseEquipment.length === 1 && exerciseEquipment[0] === "bodyweight";
+}
+
 export function getEligibleExercises(slotCategory, equipmentProfile, experienceLevel) {
   const userTokens = getEquipmentTokens(equipmentProfile);
-  return catalog.exercise_catalog.filter(
+  const allEligible = catalog.exercise_catalog.filter(
     (ex) =>
       ex.slot_categories.includes(slotCategory) &&
       equipmentAllowed(ex.equipment, userTokens) &&
       experienceAllowed(ex.min_experience, experienceLevel)
   );
+
+  // A bodyweight exercise is technically valid for a "full gym" user too
+  // (bodyweight is a subset of every higher tier), but nobody who picked
+  // "full gym" wants a plan indistinguishable from a bodyweight-only one.
+  // Prefer exercises that actually use their equipment tier, falling back
+  // to bodyweight only if the catalog has nothing else for this slot.
+  if (equipmentProfile === "bodyweight_only") return allEligible;
+  const usesTheirEquipment = allEligible.filter((ex) => !isBodyweightOnly(ex.equipment));
+  return usesTheirEquipment.length > 0 ? usesTheirEquipment : allEligible;
 }
 
 function setsRepsFor(slotCategory, experienceLevel) {
