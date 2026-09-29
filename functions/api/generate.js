@@ -251,6 +251,7 @@ export async function onRequestPost({ request, env }) {
         { role: "user", content: prompt },
       ],
       max_tokens: 3500,
+      temperature: 0.7,
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: "AI generation failed: " + err.message }, 502);
