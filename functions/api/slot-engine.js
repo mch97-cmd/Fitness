@@ -41,8 +41,20 @@ function experienceAllowed(minExperience, userExperience) {
   return minRank <= userRank;
 }
 
+function pickRandom(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
 // Days requested beyond what the template library covers (7) fall back to
 // the largest available template rather than failing outright.
+//
+// When multiple templates fit the same days/equipment (e.g. 3-day standard
+// has full-body, PPL, and upper/lower/full-body options), pick randomly
+// among them rather than always the same one — a deterministic pick meant
+// every user with the same inputs got an identical program every single
+// time they regenerated. The goal still narrows the pool toward
+// split-style vs full-body templates where that distinction matters, but
+// the final choice within that pool is randomized.
 export function selectTemplate(daysPerWeek, equipmentProfile, goal) {
   const clampedDays = Math.max(1, Math.min(daysPerWeek, 6));
   const tier = equipmentProfile === "bodyweight_only" ? "bodyweight_only" : "standard";
@@ -53,8 +65,8 @@ export function selectTemplate(daysPerWeek, equipmentProfile, goal) {
   if (matches.length === 1) return matches[0];
 
   const preferSplit = goal === "build muscle" || goal === "strength";
-  const preferred = matches.find((t) => (preferSplit ? /ppl|upper_lower/.test(t.id) : /full_body/.test(t.id)));
-  return preferred || matches[0];
+  const biased = matches.filter((t) => (preferSplit ? /ppl|upper_lower/.test(t.id) : /full_body/.test(t.id)));
+  return pickRandom(biased.length > 0 ? biased : matches);
 }
 
 // Every equipment tier is a superset of the ones below it (full_gym includes
@@ -72,6 +84,15 @@ const EQUIPMENT_PREFERENCE_TIERS = {
   bodyweight_only: [["bodyweight"]],
 };
 
+function shuffled(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export function getEligibleExercises(slotCategory, equipmentProfile, experienceLevel) {
   const userTokens = getEquipmentTokens(equipmentProfile);
   const allEligible = catalog.exercise_catalog.filter(
@@ -84,9 +105,11 @@ export function getEligibleExercises(slotCategory, equipmentProfile, experienceL
   const tiers = EQUIPMENT_PREFERENCE_TIERS[equipmentProfile] || EQUIPMENT_PREFERENCE_TIERS.bodyweight_only;
   for (const tierTags of tiers) {
     const tierMatches = allEligible.filter((ex) => ex.equipment.some((tag) => tierTags.includes(tag)));
-    if (tierMatches.length > 0) return tierMatches;
+    // Shuffle so the model isn't handed the same ordering (and doesn't lean
+    // on "always pick the first option") every single time.
+    if (tierMatches.length > 0) return shuffled(tierMatches);
   }
-  return allEligible;
+  return shuffled(allEligible);
 }
 
 function setsRepsFor(slotCategory, experienceLevel) {
