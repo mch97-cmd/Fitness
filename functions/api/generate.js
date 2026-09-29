@@ -89,7 +89,7 @@ function buildSlotPlanSection(slotPlan) {
 
 function buildPrompt(profile, targets, slotPlan) {
   const conditionsNote = profile.conditions
-    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Where relevant, prefer the gentler catalog option for a slot and note the caution in that exercise's "note" field or in the overall notes. Only include condition-specific cautions you are actually confident are medically relevant — do not invent restrictions without a clear basis.`
+    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Where relevant, prefer the gentler catalog option for a slot. Summarize any caution in the top-level "notes" field only (never attach a condition-specific caution to one specific exercise's own text). Only include cautions you are actually confident are medically relevant — do not invent restrictions without a clear basis.`
     : "The user reports no health conditions or injuries.";
 
   return `You are a certified strength coach and nutritionist personalizing a program for this person.
@@ -108,7 +108,7 @@ Profile:
 - Dietary preferences: ${profile.dietary_prefs || "none specified"}
 ${conditionsNote}
 
-Gym program: the training split and exercise slots have already been chosen for this person. For EACH slot listed below, pick the single best exercise_id for this person from ONLY the candidates listed for that slot — never invent an ID or use one not listed for that slot. Prefer options whose "best for" note matches this person's goal and experience.
+Gym program: the training split and exercise slots have already been chosen for this person. For EACH slot listed below, pick the single best exercise_id for this person from ONLY the candidates listed for that slot — never invent an ID or use one not listed for that slot. Prefer options whose "best for" description matches this person's goal and experience.
 
 ${buildSlotPlanSection(slotPlan)}
 
@@ -128,7 +128,7 @@ Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
     "days": [
       {
         "exercises": [
-          { "slot": "horizontal_press", "exercise_id": "push_up", "note": "short coaching cue, or empty string" }
+          { "slot": "horizontal_press", "exercise_id": "push_up" }
         ]
       }
     ]
