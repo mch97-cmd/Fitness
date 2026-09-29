@@ -2,6 +2,8 @@
 // Body: profile fields collected from the intake wizard.
 // Generates a tailored gym + diet program via Workers AI and stores it in D1.
 
+import { selectTemplate, buildSlotPlan, resolveGymSelection } from "./_lib/slot-engine.js";
+
 const MODEL = "@cf/ibm-granite/granite-4.0-h-micro";
 
 function badRequest(message) {
@@ -69,12 +71,28 @@ function computeNutritionTargets(profile) {
   };
 }
 
-function buildPrompt(profile, targets) {
+function buildSlotPlanSection(slotPlan) {
+  return slotPlan
+    .map((day) => {
+      const slotsText = day.slots
+        .map((slot) => {
+          const candidatesText = slot.candidates
+            .map((c) => `    - "${c.id}": ${c.name} — ${c.description} (best for: ${c.best_for})`)
+            .join("\n");
+          return `  Slot "${slot.slotCategory}" — choose exactly one exercise_id from:\n${candidatesText || "    (no eligible exercise — leave this slot out)"}`;
+        })
+        .join("\n");
+      return `${day.label}:\n${slotsText}`;
+    })
+    .join("\n\n");
+}
+
+function buildPrompt(profile, targets, slotPlan) {
   const conditionsNote = profile.conditions
-    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Adjust exercise selection and intensity to be safe for these conditions, avoid contraindicated movements, and explicitly note where the user should consult a doctor before proceeding. Only include condition-specific cautions you are actually confident are medically relevant — do not invent restrictions without a clear basis.`
+    ? `The user reports the following health conditions / injuries: ${profile.conditions}. Where relevant, prefer the gentler catalog option for a slot and note the caution in that exercise's "note" field or in the overall notes. Only include condition-specific cautions you are actually confident are medically relevant — do not invent restrictions without a clear basis.`
     : "The user reports no health conditions or injuries.";
 
-  return `You are a certified strength coach and nutritionist. Design a personalized program for this person.
+  return `You are a certified strength coach and nutritionist personalizing a program for this person.
 
 Profile:
 - Name: ${profile.name || "N/A"}
@@ -87,16 +105,12 @@ Profile:
 - Goal: ${profile.goal}
 - Training experience: ${profile.experience_level}
 - Training days per week: ${profile.days_per_week}
-- Available equipment: ${profile.equipment}
 - Dietary preferences: ${profile.dietary_prefs || "none specified"}
 ${conditionsNote}
 
-Training program requirements:
-- The "days" array MUST contain EXACTLY ${profile.days_per_week} entries — one per requested training day, no more, no fewer.
-- Give each training day AT LEAST 5-6 exercises (never just 2-3) — beginners can stay toward 5, intermediate/advanced toward 6-7.
-- Across the week, cover every major muscle group: chest, back, shoulders, biceps, triceps, quads, hamstrings, glutes, calves, and core. Do not rely only on compound lifts to imply arm work — include at least one DIRECT biceps exercise (e.g. curls) and one DIRECT triceps exercise (e.g. pushdowns/extensions/dips) somewhere in the week, and two of each if training days per week is 4 or more or the goal is "build muscle".
-- Choose a split that fits ${profile.days_per_week} training days: 1-2 days = full body, 3 days = Push/Pull/Legs, 4 days = Upper/Lower or Push/Pull/Legs+Upper, 5-6 days = a full body-part split (e.g. Chest, Back, Shoulders, Arms, Legs).
-- ONLY select exercises that can be performed with the available equipment: "${profile.equipment}". If it is "home - no equipment", use ONLY bodyweight exercises — good examples: push-ups, diamond push-ups, pike push-ups, squats, lunges, glute bridges, planks, mountain climbers, bodyweight rows on a sturdy table/bar, pull-ups if a bar is plausible, bicep-focused isometric holds, tricep dips on a chair/couch. NEVER include "dumbbell", "barbell", "kettlebell", "cable", "machine", or "pulldown" in an exercise name for this equipment level. If it is "home - dumbbells only", use only dumbbell and bodyweight exercises — no barbells, cables, or gym machines.
+Gym program: the training split and exercise slots have already been chosen for this person. For EACH slot listed below, pick the single best exercise_id for this person from ONLY the candidates listed for that slot — never invent an ID or use one not listed for that slot. Prefer options whose "best for" note matches this person's goal and experience.
+
+${buildSlotPlanSection(slotPlan)}
 
 Nutrition targets have already been calculated for this person — the daily_calories and macros fields below must equal these EXACT numbers, do not recalculate or change them:
 - Daily calories: ${targets.daily_calories} kcal
@@ -109,13 +123,12 @@ ${profile.dietary_prefs ? `STRICT dietary rule: every meal and its alternative M
 
 Respond with ONLY valid JSON, no markdown fences, matching exactly this shape:
 {
-  "gym_program": {
-    "summary": "short overview of the training approach",
+  "gym_selection": {
+    "summary": "1-2 sentence overview of the training approach for this person",
     "days": [
       {
-        "day": "Day 1 - Push",
         "exercises": [
-          { "name": "Bench Press", "sets": 4, "reps": "6-8", "notes": "" }
+          { "slot": "horizontal_press", "exercise_id": "push_up", "note": "short coaching cue, or empty string" }
         ]
       }
     ]
@@ -169,32 +182,9 @@ function normalizeMeals(meals, targets) {
   });
 }
 
-// Prompt instructions alone aren't reliable enough for a small model to always
-// follow (verified: it still suggested dumbbell/machine exercises for "no
-// equipment" and nuts for a "no nuts" restriction) — so scan the actual output
-// for violations and surface them, the same "never fully trust the LLM"
-// principle used for the calorie/macro math.
-const EQUIPMENT_FORBIDDEN_KEYWORDS = {
-  "home - no equipment": [
-    "dumbbell", "barbell", "kettlebell", "cable", "machine", "pulldown",
-    "leg press", "smith machine", "plate", "ez bar", "landmine",
-  ],
-  "home - dumbbells only": ["barbell", "cable", "machine", "pulldown", "leg press", "smith machine", "landmine"],
-};
-
-function checkEquipmentConflicts(days, equipment) {
-  const forbidden = EQUIPMENT_FORBIDDEN_KEYWORDS[equipment];
-  if (!forbidden || !Array.isArray(days)) return [];
-  const flagged = [];
-  for (const day of days) {
-    for (const ex of day.exercises || []) {
-      const name = (ex.name || "").toLowerCase();
-      if (forbidden.some((kw) => name.includes(kw))) flagged.push(ex.name);
-    }
-  }
-  return [...new Set(flagged)];
-}
-
+// Equipment compliance no longer needs a post-hoc keyword check: the slot
+// engine only ever offers the model equipment-eligible candidates, and any
+// invalid/hallucinated pick is deterministically replaced in resolveGymSelection.
 const DIETARY_CONFLICT_KEYWORDS = {
   vegetarian: ["chicken", "beef", "pork", "turkey", "bacon", "salmon", "tuna", "shrimp", "fish", "steak", "ham", "sausage"],
   vegan: ["chicken", "beef", "pork", "turkey", "bacon", "salmon", "tuna", "shrimp", "fish", "steak", "ham", "sausage", "egg", "cheese", "milk", "yogurt", "honey", "butter"],
@@ -244,7 +234,14 @@ export async function onRequestPost({ request, env }) {
   }
 
   const targets = computeNutritionTargets(profile);
-  const prompt = buildPrompt(profile, targets);
+
+  const template = selectTemplate(profile.days_per_week, profile.equipment, profile.goal);
+  if (!template) {
+    return badRequest(`No training template available for ${profile.days_per_week} days/week with equipment "${profile.equipment}"`);
+  }
+  const slotPlan = buildSlotPlan(template, profile.equipment, profile.experience_level);
+
+  const prompt = buildPrompt(profile, targets, slotPlan);
 
   let aiResult;
   try {
@@ -279,12 +276,14 @@ export async function onRequestPost({ request, env }) {
     meals: normalizeMeals(parsed.diet_program?.meals, targets),
   };
 
-  const equipmentConflicts = checkEquipmentConflicts(parsed.gym_program?.days, profile.equipment);
+  // Resolve the model's slot picks against the catalog — any invalid or
+  // hallucinated exercise_id is deterministically replaced, so the final
+  // gym_program is always equipment-correct and structurally valid regardless
+  // of what the model actually returned.
+  parsed.gym_program = resolveGymSelection(slotPlan, parsed.gym_selection);
+
   const dietaryConflicts = checkDietaryConflicts(parsed.diet_program?.meals, profile.dietary_prefs);
   let notes = parsed.notes || "";
-  if (equipmentConflicts.length) {
-    notes += `\n\nEquipment check: these exercises may need equipment beyond what you selected (${profile.equipment}) — review before starting: ${equipmentConflicts.join(", ")}.`;
-  }
   if (dietaryConflicts.length) {
     notes += `\n\nDietary check: these meals may not match your stated preferences ("${profile.dietary_prefs}") — review before following: ${dietaryConflicts.join(", ")}.`;
   }
